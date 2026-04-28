@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Executive Dashboard</title>
+    <!-- โหลด Chart.js และ PapaParse สำหรับอ่านไฟล์ CSV -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        /* ดีไซน์พื้นหลังสีเข้ม ตัวหนังสือสีขาว ดูหรูหราและสะอาดตา */
+        body {
+            background-color: #121212;
+            color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 30px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #4caf50;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .chart-card {
+            background-color: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #2a2a2a;
+        }
+        .chart-card h2 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: #b3e5fc;
+            font-weight: 400;
+        }
+        canvas {
+            width: 100% !important;
+            max-height: 300px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📊 Sales Executive Dashboard</h1>
+    
+    <div class="dashboard-container">
+        <!-- กราฟที่ 1: ยอดขายแยกตามลูกค้า -->
+        <div class="chart-card">
+            <h2>ยอดขายสุทธิแยกตามลูกค้า (Net Value)</h2>
+            <canvas id="customerChart"></canvas>
+        </div>
+        
+        <!-- กราฟที่ 2: สัดส่วนยอดขายตามประเภทสินค้า -->
+        <div class="chart-card">
+            <h2>สัดส่วนรายได้แยกตามประเภทสินค้า</h2>
+            <canvas id="materialChart"></canvas>
+        </div>
+        
+        <!-- กราฟที่ 3: ปริมาณการขายตามพนักงาน -->
+        <div class="chart-card">
+            <h2>ปริมาณการขายโดยพนักงาน (Quantity)</h2>
+            <canvas id="employeeChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // 1. ระบุลิงก์ CSV ของคุณที่นี่ (หากดึงจาก Google Sheets สามารถใช้ลิงก์ Export เป็น CSV ได้)
+        const csvUrl = "[วางลิงก์ CSV ของคุณที่นี่]";
+
+        // ตั้งค่าสีพื้นฐานสำหรับ Chart.js ในโหมด Dark Theme
+        Chart.defaults.color = '#bdbdbd';
+        Chart.defaults.borderColor = '#333';
+
+        // ฟังก์ชันสร้างชุดสีสวยๆ อัตโนมัติสำหรับกราฟโดนัท
+        function generateColors(count) {
+            const colors = [];
+            for(let i = 0; i < count; i++) {
+                colors.push(`hsl(${(i * 360) / count}, 70%, 65%)`);
+            }
+            return colors;
+        }
+
+        // 2. โหลดและแปลงไฟล์ CSV ด้วย PapaParse
+        Papa.parse(csvUrl, {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            complete: function(results) {
+                // กรองเฉพาะแถวที่มีข้อมูลครบถ้วน
+                const data = results.data.filter(row => row.NetValue != null && row.SoldToName1 != null);
+                
+                const customerSales = {};
+                const materialSales = {};
+                const employeeQty = {};
+
+                // 3. จัดกลุ่มข้อมูลตาม KPI ทั้ง 3 ข้อ
+                data.forEach(row => {
+                    const customer = row.SoldToName1;
+                    const material = row.MatGrDes;
+                    const employee = row.EmpName;
+                    const netValue = parseFloat(row.NetValue) || 0;
+                    const qty = parseFloat(row.Quantity) || 0;
+
+                    if(customer) customerSales[customer] = (customerSales[customer] || 0) + netValue;
+                    if(material) materialSales[material] = (materialSales[material] || 0) + netValue;
+                    if(employee) employeeQty[employee] = (employeeQty[employee] || 0) + qty;
+                });
+
+                // --- วาดกราฟ 1: Customer Sales (Bar Chart) ---
+                new Chart(document.getElementById('customerChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(customerSales),
+                        datasets: [{
+                            label: 'Net Value (THB)',
+                            data: Object.values(customerSales),
+                            backgroundColor: 'rgba(76, 175, 80, 0.8)',
+                            borderRadius: 4
+                        }]
+                    }
+                });
+
+                // --- วาดกราฟ 2: Material Sales (Doughnut Chart) ---
+                const matKeys = Object.keys(materialSales);
+                new Chart(document.getElementById('materialChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: matKeys,
+                        datasets: [{
+                            data: Object.values(materialSales),
+                            backgroundColor: generateColors(matKeys.length),
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { cutout: '65%' }
+                });
+
+                // --- วาดกราฟ 3: Employee Quantity (Bar Chart) ---
+                new Chart(document.getElementById('employeeChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(employeeQty),
+                        datasets: [{
+                            label: 'Quantity (PCS)',
+                            data: Object.values(employeeQty),
+                            backgroundColor: 'rgba(3, 169, 244, 0.8)',
+                            borderRadius: 4
+                        }]
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
